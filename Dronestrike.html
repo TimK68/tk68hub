@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DroneStrike.io (Prototype)</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #111;
+      color: white;
+      font-family: sans-serif;
+    }
+    canvas {
+      display: block;
+      background-color: #222;
+    }
+    #scoreboard {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    #gameOverMessage {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 30px;
+      color: white;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 20px;
+      border-radius: 10px;
+      display: none;
+      text-align: center;
+    }
+    #mainMenu {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 30px;
+      color: white;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      display: block;
+    }
+    button {
+      margin-top: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div id="scoreboard">
+    Score: <span id="score">0</span><br>
+    Temps survécu: <span id="survivalTime">0</span>s
+  </div>
+  <div id="gameOverMessage">
+    Vous êtes mort !<br>
+    <span id="finalScore"></span><br>
+    <span id="bestScore"></span><br>
+    <button onclick="restartGame()">Rejouer</button>
+  </div>
+  <div id="mainMenu">
+    <h1>DroneStrike.io</h1>
+    <button onclick="startGame()">Lancer la Partie</button>
+  </div>
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let mouseX = canvas.width / 2;
+    let mouseY = canvas.height / 2;
+    let player = {
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      size: 20,
+      speed: 4,
+      score: 0,
+      alive: true
+    };
+
+    let enemies = [];
+    let survivalTime = 0;
+    let bestScore = localStorage.getItem("bestScore") || 0;
+
+    // Event listeners for mouse movement
+    canvas.addEventListener("mousemove", (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+    });
+
+    // Function to spawn enemies
+    function spawnEnemy() {
+      enemies.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        size: 15,
+        speed: 2,
+        angleVariation: (Math.random() - 0.5) * 0.5 // Variation de direction aléatoire
+      });
+    }
+
+    // Game Over Screen
+    function showGameOver() {
+      document.getElementById("gameOverMessage").style.display = "block";
+      document.getElementById("finalScore").innerText = "Score final: " + survivalTime;
+      document.getElementById("bestScore").innerText = "Meilleur score: " + bestScore;
+      document.getElementById("mainMenu").style.display = "none";
+      canvas.style.display = "none"; // Hide the canvas
+    }
+
+    function restartGame() {
+      window.location.reload();
+    }
+
+    // Start the game
+    function startGame() {
+      document.getElementById("mainMenu").style.display = "none";
+      document.getElementById("gameOverMessage").style.display = "none";
+      canvas.style.display = "block"; // Show the canvas
+      player.alive = true;
+      player.x = canvas.width / 2;
+      player.y = canvas.height / 2;
+      player.score = 0;
+      survivalTime = 0;
+      enemies = [];
+      gameLoop();
+      setInterval(spawnEnemy, 15000); // Spawn a new enemy every 15 seconds
+    }
+
+    // Function to move the player
+    function movePlayer() {
+      const dx = mouseX - player.x;
+      const dy = mouseY - player.y;
+      const angle = Math.atan2(dy, dx);
+      player.x += Math.cos(angle) * player.speed;
+      player.y += Math.sin(angle) * player.speed;
+    }
+
+    // Function to draw player
+    function drawPlayer() {
+      ctx.fillStyle = "#0ff";
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Function to move enemies with random trajectory while following the player
+    function moveEnemies() {
+      for (let enemy of enemies) {
+        let dx = player.x - enemy.x;
+        let dy = player.y - enemy.y;
+        let angle = Math.atan2(dy, dx); // Angle vers le joueur
+
+        // Appliquer une petite variation aléatoire à la trajectoire
+        angle += enemy.angleVariation;
+
+        // Déplacer l'ennemi en direction du joueur avec la variation
+        enemy.x += Math.cos(angle) * enemy.speed;
+        enemy.y += Math.sin(angle) * enemy.speed;
+
+        // Check collision with player
+        let dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < player.size + enemy.size && player.alive) {
+          player.alive = false;
+          showGameOver();
+          // Update best score
+          if (survivalTime > bestScore) {
+            bestScore = survivalTime;
+            localStorage.setItem("bestScore", bestScore);
+          }
+        }
+      }
+    }
+
+    // Function to update the survival time
+    function updateSurvivalTime() {
+      if (player.alive) {
+        survivalTime++;
+        document.getElementById("survivalTime").innerText = survivalTime;
+        player.score = survivalTime;
+        document.getElementById("score").innerText = player.score;
+      }
+    }
+
+    // Function to draw enemies
+    function drawEnemies() {
+      ctx.fillStyle = "#f44";
+      for (let enemy of enemies) {
+        ctx.beginPath();
+        ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Game loop
+    function gameLoop() {
+      if (player.alive) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        movePlayer();
+        moveEnemies();
+        drawPlayer();
+        drawEnemies();
+        updateSurvivalTime();
+        requestAnimationFrame(gameLoop);
+      }
+    }
+
+    window.addEventListener("keydown", (e) => keys[e.key] = true);
+    window.addEventListener("keyup", (e) => keys[e.key] = false);
+
+  </script>
+</body>
+</html>
